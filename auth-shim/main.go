@@ -3,9 +3,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -125,6 +127,72 @@ func (s *server) handleCheck(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+type mediaMtxAuthRequest struct {
+	User     string `json:"user"`
+	Password string `json:"password"`
+	IP       string `json:"ip"`
+	Action   string `json:"action"`   // publish | read
+	Path     string `json:"path"`
+	Query    string `json:"query"`    // raw query string ("jwt=eyJ...")
+	Protocol string `json:"protocol"` // rtsps | rtsp | webrtc | hls | rtmp
+}
+
+// handleAuth implements the MediaMTX externalAuthenticationURL contract:
+// MediaMTX POSTs a JSON body before allowing publish/read; we extract the
+// JWT from the publish URL's ?jwt= query parameter, validate it against the
+// JWKS, and enforce that mediamtx_permissions[0] matches the requested
+// action+path. Same JWKS + claim shape as handleCheck (Caddy forward_auth);
+// only the transport differs (POST JSON body vs GET query+headers+cookie).
+func (s *server) handleAuth(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method", http.StatusMethodNotAllowed)
+		return
+	}
+	var req mediaMtxAuthRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	// Pull JWT from the publish URL's query string.
+	q, err := url.ParseQuery(req.Query)
+	if err != nil {
+		http.Error(w, "bad query", http.StatusBadRequest)
+		return
+	}
+	tok := q.Get("jwt")
+	if tok == "" {
+		http.Error(w, "missing jwt", http.StatusUnauthorized)
+		return
+	}
+
+	kf, err := s.ensureJWKS()
+	if err != nil {
+		http.Error(w, "jwks fetch failed", http.StatusServiceUnavailable)
+		return
+	}
+	claims := &streamClaims{}
+	parsed, err := jwt.ParseWithClaims(tok, claims, kf.Keyfunc,
+		jwt.WithIssuer("mdrrmo-api"), jwt.WithValidMethods([]string{"ES256"}))
+	if err != nil {
+		log.Printf("jwt parse error (publish auth): %v", err)
+		http.Error(w, "invalid token", http.StatusUnauthorized)
+		return
+	}
+	if !parsed.Valid {
+		http.Error(w, "invalid token", http.StatusUnauthorized)
+		return
+	}
+	if len(claims.Permissions) == 0 ||
+		claims.Permissions[0].Action != req.Action ||
+		claims.Permissions[0].Path != req.Path {
+		http.Error(w, "claim/path/action mismatch", http.StatusForbidden)
+		return
+	}
+	log.Printf(`{"ts":"%s","handler":"auth","action":"%s","path":"%s","ip":"%s","protocol":"%s","sub":"%s"}`,
+		time.Now().UTC().Format(time.RFC3339), req.Action, req.Path, req.IP, req.Protocol, claims.Subject)
+	w.WriteHeader(http.StatusOK)
+}
+
 func (s *server) primeJWKS(ctx context.Context) {
 	// Bounded retry on startup so transient dashboard unreachability doesn't
 	// leave the first viewer staring at a 503.
@@ -180,6 +248,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/check", s.handleCheck)
+	mux.HandleFunc("/auth", s.handleAuth)
 	mux.HandleFunc("/healthz", s.handleHealthz)
 	addr := ":7000"
 	log.Printf("auth-shim listening on %s, JWKS=%s", addr, jwksURL)
