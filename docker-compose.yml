@@ -1,0 +1,85 @@
+# mdrrmo-cctv-hub/docker-compose.yml
+#
+# Path A vs Path B is selected at deploy time via COMPOSE_PROFILES (set in .env):
+#   COMPOSE_PROFILES=path-a  → Caddy with caddy-jwt plugin (built via xcaddy, see caddy/Dockerfile)
+#   COMPOSE_PROFILES=path-b  → Caddy stock + auth-shim sidecar (validates JWT in Go)
+# (Phase 0 spike picked path-b — see docs/decisions/0001-jwt-validation-layer.md)
+#
+# Both paths share the `hub` bridge network and the same MediaMTX service.
+# RTSPS publish on 8443 is mapped directly to MediaMTX (NOT proxied through Caddy)
+# and authed via MediaMTX externalAuthenticationURL → auth-shim (Path B only;
+# on Path A the auth-shim still runs to handle RTSPS auth — see Task 1.3.5).
+#
+# MULTI-ARCH: This file is provider-agnostic. All `image:` references resolve
+# to multi-arch manifests, and Docker pulls the correct arch automatically:
+#   - Hetzner CCX23 (x86_64) → linux/amd64
+#   - Oracle Ampere A1 (arm64) → linux/arm64
+# Verified multi-arch (no extra config): caddy:2.8.4-alpine, bluenviron/mediamtx:v1.6.0.
+# Multi-arch via our Dockerfile: auth-shim (uses BUILDPLATFORM/TARGETARCH — see Task 1.3 Step 8).
+# DO NOT add `platform:` to any service — that would defeat multi-arch.
+services:
+  caddy:
+    # Path A builds Caddy with caddy-jwt via xcaddy (caddy/Dockerfile, see Task 1.3 Path A).
+    # Path B uses the stock Alpine image because all auth lives in auth-shim.
+    build:
+      context: ./caddy
+      dockerfile: Dockerfile.${COMPOSE_PROFILES:-path-b}
+    image: mdrrmo/cctv-caddy-${COMPOSE_PROFILES:-path-b}:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file: .env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - caddy_logs:/var/log/caddy
+    depends_on:
+      mediamtx:
+        condition: service_started
+      auth-shim:
+        condition: service_healthy
+    networks: [hub]
+
+  mediamtx:
+    image: bluenviron/mediamtx:${MEDIAMTX_VERSION}
+    restart: unless-stopped
+    ports:
+      - "8443:8322"   # RTSPS publish — host:8443 → mediamtx:8322 (auth via externalAuthenticationURL)
+    volumes:
+      - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
+      - mediamtx_data:/var/lib/mediamtx
+    depends_on:
+      auth-shim:
+        condition: service_healthy
+    networks: [hub]
+
+  # auth-shim runs on BOTH profiles:
+  #  - Path B: also handles HLS/WebRTC/WHIP via Caddy forward_auth
+  #  - Path A: handles RTSPS publish only (MediaMTX externalAuthenticationURL),
+  #            since caddy-jwt cannot inspect mid-handshake RTSPS publishes.
+  auth-shim:
+    build: ./auth-shim
+    image: mdrrmo/cctv-auth-shim:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - JWKS_URL=https://${DASHBOARD_HOST}/.well-known/jwks.json
+    healthcheck:
+      test: ["CMD", "/auth-shim", "-healthcheck"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
+    networks: [hub]
+
+volumes:
+  caddy_data:
+  caddy_config:
+  caddy_logs:
+  mediamtx_data:
+
+networks:
+  hub:
+    driver: bridge
