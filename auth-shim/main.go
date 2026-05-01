@@ -25,24 +25,25 @@ func newServer(jwksURL string) *server {
 	return &server{jwksURL: jwksURL}
 }
 
-func (s *server) ensureJWKS() error {
+func (s *server) ensureJWKS() (keyfunc.Keyfunc, error) {
 	s.mu.RLock()
 	if s.kf != nil {
+		kf := s.kf
 		s.mu.RUnlock()
-		return nil
+		return kf, nil
 	}
 	s.mu.RUnlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.kf != nil {
-		return nil
+		return s.kf, nil
 	}
 	kf, err := keyfunc.NewDefaultCtx(context.Background(), []string{s.jwksURL})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	s.kf = kf
-	return nil
+	return kf, nil
 }
 
 type streamClaims struct {
@@ -70,14 +71,20 @@ func (s *server) handleCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.ensureJWKS(); err != nil {
+	kf, err := s.ensureJWKS()
+	if err != nil {
 		http.Error(w, "jwks fetch failed", http.StatusServiceUnavailable)
 		return
 	}
 	claims := &streamClaims{}
-	parsed, err := jwt.ParseWithClaims(tok, claims, s.kf.Keyfunc, jwt.WithIssuer("mdrrmo-api"), jwt.WithValidMethods([]string{"ES256"}))
-	if err != nil || !parsed.Valid {
-		http.Error(w, "invalid token: "+err.Error(), http.StatusUnauthorized)
+	parsed, err := jwt.ParseWithClaims(tok, claims, kf.Keyfunc, jwt.WithIssuer("mdrrmo-api"), jwt.WithValidMethods([]string{"ES256"}))
+	if err != nil {
+		log.Printf("jwt parse error: %v", err)
+		http.Error(w, "invalid token", http.StatusUnauthorized)
+		return
+	}
+	if !parsed.Valid {
+		http.Error(w, "invalid token", http.StatusUnauthorized)
 		return
 	}
 
@@ -123,7 +130,7 @@ func (s *server) primeJWKS(ctx context.Context) {
 	// leave the first viewer staring at a 503.
 	backoff := 2 * time.Second
 	for i := 1; i <= 5; i++ {
-		if err := s.ensureJWKS(); err == nil {
+		if _, err := s.ensureJWKS(); err == nil {
 			log.Printf("[startup] JWKS primed on attempt %d", i)
 			return
 		} else {
