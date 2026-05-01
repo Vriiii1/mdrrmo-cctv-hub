@@ -1,0 +1,54 @@
+# mdrrmo-cctv-hub/Caddyfile (Path B — auth-shim sidecar)
+{
+    email {$ACME_EMAIL}
+}
+
+{$HUB_DOMAIN} {
+    encode zstd gzip
+
+    handle /healthz {
+        reverse_proxy auth-shim:7000
+    }
+
+    @hls path_regexp hls ^/(muni-[A-Za-z0-9_-]+/cam-[A-Za-z0-9_-]+)/(index\.m3u8|.+\.ts)$
+    handle @hls {
+        forward_auth auth-shim:7000 {
+            uri /check?path={http.regexp.hls.1}&action=read&token={query.jwt}
+            # Forward the cookie so .ts segments (which lose ?jwt= in browser
+            # relative URLs) can authenticate via the hub_view cookie minted
+            # on the prior .m3u8 accept.
+            copy_headers Cookie
+            # Propagate the Set-Cookie that auth-shim sets on first .m3u8.
+            copy_response_headers Set-Cookie
+        }
+        rewrite * /{re.hls.1}/{re.hls.2}
+        reverse_proxy mediamtx:8888
+    }
+
+    @whep path_regexp whep ^/(muni-[A-Za-z0-9_-]+/cam-[A-Za-z0-9_-]+)/whep$
+    handle @whep {
+        forward_auth auth-shim:7000 {
+            uri /check?path={http.regexp.whep.1}&action=read&token={query.jwt}
+        }
+        rewrite * /{re.whep.1}/whep
+        reverse_proxy mediamtx:8889
+    }
+
+    @whip path_regexp whip ^/(muni-[A-Za-z0-9_-]+/cam-[A-Za-z0-9_-]+)/whip$
+    handle @whip {
+        forward_auth auth-shim:7000 {
+            uri /check?path={http.regexp.whip.1}&action=publish&token={query.jwt}
+        }
+        rewrite * /{re.whip.1}/whip
+        reverse_proxy mediamtx:8889
+    }
+
+    handle { respond 404 }
+
+    log {
+        output file /var/log/caddy/access.log {
+            roll_size 10mb roll_keep 14
+        }
+        format json
+    }
+}

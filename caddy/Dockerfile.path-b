@@ -1,0 +1,3 @@
+# caddy/Dockerfile.path-b — Stock Caddy. All auth lives in the auth-shim sidecar.
+ARG CADDY_VERSION=2.8.4
+FROM caddy:${CADDY_VERSION}-alpine

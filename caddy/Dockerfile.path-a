@@ -1,0 +1,12 @@
+# caddy/Dockerfile.path-a — Caddy + caddy-jwt plugin (xcaddy build).
+# Pin BOTH the Caddy version AND the plugin commit/tag so production builds
+# are reproducible. Update both in lockstep when revisiting.
+ARG CADDY_VERSION=2.8.4
+FROM caddy:${CADDY_VERSION}-builder AS build
+# Pin the plugin to a release tag (verified in Phase 0.4 spike).
+RUN xcaddy build \
+    --with github.com/greenpau/caddy-security@v1.1.30 \
+    --with github.com/greenpau/caddy-jwt@v1.7.0
+
+FROM caddy:${CADDY_VERSION}-alpine
+COPY --from=build /usr/bin/caddy /usr/bin/caddy
