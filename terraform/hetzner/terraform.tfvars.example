@@ -1,0 +1,7 @@
+# terraform/hetzner/terraform.tfvars.example
+hcloud_token        = "REPLACE"
+cloudflare_token    = "REPLACE"
+cloudflare_zone_id  = "REPLACE"
+hub_subdomain       = "hub"
+ops_public_key_path = "~/.ssh/mdrrmo_cctv_hub_ops_ed25519.pub"
+ops_bastion_cidr    = "1.2.3.4/32"
