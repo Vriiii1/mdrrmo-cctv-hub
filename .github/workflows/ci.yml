@@ -1,8 +1,12 @@
-# .github/workflows/ci.yml
 name: ci
+
 on:
-  push: { branches: [main] }
+  push:
+    branches:
+      - main
   pull_request:
+    branches:
+      - main
 
 jobs:
   validate:
@@ -18,13 +22,13 @@ jobs:
         run: |
           set -e
           cp .env.example .env
-          # Both profiles must validate — stops drift when only one is exercised manually.
+          # Both profiles must validate -- stops drift when only one is exercised manually.
           COMPOSE_PROFILES=path-a docker compose config --quiet
           COMPOSE_PROFILES=path-b docker compose config --quiet
       - name: caddy validate
         run: docker run --rm -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.8.4-alpine caddy validate --config /etc/caddy/Caddyfile
-      - name: mediamtx config
-        run: docker run --rm -v "$PWD/mediamtx/mediamtx.yml:/mediamtx.yml:ro" bluenviron/mediamtx:v1.6.0 sh -c "true"  # config check; tolerate v1.6.0 boot diff
+      - name: mediamtx config (smoke)
+        run: docker run --rm -v "$PWD/mediamtx/mediamtx.yml:/mediamtx.yml:ro" bluenviron/mediamtx:v1.6.0 sh -c "true"
       - name: shellcheck
         run: docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:stable /mnt/scripts/setup.sh
 
@@ -34,7 +38,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: { go-version: '1.22' }
+        with:
+          go-version: '1.22'
       - name: go mod download (populate go.sum)
         working-directory: auth-shim
         run: go mod download
