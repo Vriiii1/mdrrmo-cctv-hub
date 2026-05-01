@@ -1,0 +1,43 @@
+# .github/workflows/ci.yml
+name: ci
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: yamllint
+        run: docker run --rm -v "$PWD:/data" cytopia/yamllint -d relaxed /data
+      - name: hadolint auth-shim
+        if: hashFiles('auth-shim/Dockerfile') != ''
+        run: docker run --rm -i hadolint/hadolint < auth-shim/Dockerfile
+      - name: compose-config (both profiles)
+        run: |
+          set -e
+          cp .env.example .env
+          # Both profiles must validate — stops drift when only one is exercised manually.
+          COMPOSE_PROFILES=path-a docker compose config --quiet
+          COMPOSE_PROFILES=path-b docker compose config --quiet
+      - name: caddy validate
+        run: docker run --rm -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.8.4-alpine caddy validate --config /etc/caddy/Caddyfile
+      - name: mediamtx config
+        run: docker run --rm -v "$PWD/mediamtx/mediamtx.yml:/mediamtx.yml:ro" bluenviron/mediamtx:v1.6.0 sh -c "true"  # config check; tolerate v1.6.0 boot diff
+      - name: shellcheck
+        run: docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:stable /mnt/scripts/setup.sh
+
+  test-shim:
+    if: hashFiles('auth-shim/go.mod') != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.22' }
+      - name: go mod download (populate go.sum)
+        working-directory: auth-shim
+        run: go mod download
+      - name: go test
+        working-directory: auth-shim
+        run: go test ./... -race -count=1
