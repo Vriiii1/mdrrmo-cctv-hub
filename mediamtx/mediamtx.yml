@@ -1,0 +1,71 @@
+# mdrrmo-cctv-hub/mediamtx/mediamtx.yml
+# MediaMTX config — passthrough live streams; auth handled by Caddy in front.
+
+# Logging
+logLevel: info
+logDestinations: [stdout]
+
+# Bind to 0.0.0.0 — MediaMTX runs in the private `hub` Compose bridge network
+# (per Task 1.4 Option B). Only Caddy and auth-shim share that bridge; no host
+# port is exposed for these except RTSPS 8443 (mapped via Compose `ports:`).
+# RTSPS publish auth is enforced via externalAuthenticationURL → auth-shim.
+
+# RTSPS publish (TLS-wrapped RTSP) — agents publish to <HUB_DOMAIN>:8443
+rtsp: yes
+rtspAddress: 0.0.0.0:8554
+rtsps: yes
+rtspsAddress: 0.0.0.0:8322
+encryption: optional
+serverCert: /certs/server.crt
+serverKey: /certs/server.key
+
+# RTSPS publish auth — MediaMTX calls auth-shim before allowing publish/read.
+# auth-shim parses ?jwt=... from query, validates against JWKS, enforces
+# action+path binding (mediamtx_permissions[0] must match action+path).
+# See Task 1.3.5 for the contract; same JWKS as HLS/WebRTC paths.
+externalAuthenticationURL: http://auth-shim:7000/auth
+
+# RTMP off
+rtmp: no
+
+# HLS muxer — citizens consume index.m3u8
+hls: yes
+hlsAddress: 0.0.0.0:8888
+hlsAlwaysRemux: no
+hlsSegmentCount: 7
+hlsSegmentDuration: 4s
+hlsPartDuration: 200ms
+hlsSegmentMaxSize: 50M
+hlsAllowOrigin: '*'
+
+# WebRTC muxer — admins consume /whep
+webrtc: yes
+webrtcAddress: 0.0.0.0:8889
+webrtcLocalUDPAddress: ':8189'
+# ICE: passthrough public IP later; defer to Phase 4 if browser viewers struggle
+webrtcAllowOrigin: '*'
+
+# WHIP publish — modern browser-direct publishers (future-proof)
+# Same port as WebRTC viewer; mode chosen per-path.
+
+# API (paths, sessions, healthz proxied by Caddy)
+api: yes
+apiAddress: 0.0.0.0:9997
+
+# No metrics, no playback, no recording in MVP.
+metrics: no
+playback: no
+record: no
+
+# Paths — all dynamically allowed under muni-*/cam-*. No fixed paths.
+paths:
+  '~^muni-[A-Za-z0-9_-]+/cam-[A-Za-z0-9_-]+$':
+    # source defaults to publisher (push-from-agent)
+    source: publisher
+    # AUTH: externalAuthenticationURL above gates RTSPS publish + RTSP read.
+    # HLS/WebRTC paths reach MediaMTX only via Caddy (which validates JWT
+    # before reverse-proxying), so embedded user/pass stay empty.
+    publishUser: ''
+    publishPass: ''
+    readUser: ''
+    readPass: ''
