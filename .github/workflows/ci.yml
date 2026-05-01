@@ -16,7 +16,6 @@ jobs:
       - name: yamllint
         run: docker run --rm -v "$PWD:/data" cytopia/yamllint -d relaxed /data
       - name: hadolint auth-shim
-        if: hashFiles('auth-shim/Dockerfile') != ''
         run: docker run --rm -i hadolint/hadolint < auth-shim/Dockerfile
       - name: compose-config (both profiles)
         run: |
@@ -33,7 +32,6 @@ jobs:
         run: docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:stable /mnt/scripts/setup.sh
 
   test-shim:
-    if: hashFiles('auth-shim/go.mod') != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
