@@ -38,12 +38,13 @@ See `docs/production-deployment.md` (created in Phase 7).
 
 ## CI
 
-This repo runs CI on **two** providers in parallel:
+This repo's CI lives in three places (any one passing is sufficient):
 
-- **GitHub Actions** — `.github/workflows/ci.yml` (push to main, pull requests)
-- **Cirrus CI** — `.cirrus.yml` (same checks, no GitHub-billing dependency)
+- **GitHub Actions** — `.github/workflows/ci.yml` (push, PR). Currently inactive due to GitHub billing lock.
+- **Cirrus CI** — `.cirrus.yml`. Currently gated by Cirrus's paid-seat policy.
+- **GitLab CI** — `.gitlab-ci.yml`. Source-of-truth code lives on GitHub; GitLab pull-mirrors and runs the gates on free shared runners.
 
-Either gate suffices. Cirrus CI is set up via the [Cirrus CI GitHub app](https://github.com/marketplace/cirrus-ci) — install once, results post back as PR checks.
+Source of truth for code: GitHub. Mirror runs CI; do not push code directly to GitLab.
 
 ## Source spec
 [mdrrmo_app/docs/superpowers/specs/2026-04-29-cctv-hub-deployment-design.md](../mdrrmo_app/docs/superpowers/specs/2026-04-29-cctv-hub-deployment-design.md)
