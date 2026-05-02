@@ -18,8 +18,10 @@
             # relative URLs) can authenticate via the hub_view cookie minted
             # on the prior .m3u8 accept.
             copy_headers Cookie
-            # Propagate the Set-Cookie that auth-shim sets on first .m3u8.
-            copy_response_headers Set-Cookie
+            # TODO(phase-2): propagate auth-shim's Set-Cookie back to client.
+            # Caddy 2.8.4 forward_auth has no built-in response-side copy;
+            # likely needs handle_response with copy_headers or move cookie
+            # minting into Caddy via a custom matcher. Verify in HLS E2E test.
         }
         rewrite * /{re.hls.1}/{re.hls.2}
         reverse_proxy mediamtx:8888

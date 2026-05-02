@@ -29,9 +29,16 @@ validate_task:
 
   mediamtx_config_validate_script: |
     set -e
-    # Boot mediamtx with the config; if parse fails the container exits non-zero.
+    # Throwaway self-signed cert so mediamtx can open the RTSPS listener.
+    mkdir -p mediamtx/certs
+    docker run --rm -v "$PWD/mediamtx/certs:/certs" alpine/openssl \
+      req -x509 -newkey rsa:2048 -nodes -days 1 \
+      -keyout /certs/server.key -out /certs/server.crt \
+      -subj "/CN=ci-test"
+    # Boot mediamtx with the config; if parse or listener-open fails, container exits non-zero.
     docker run --rm --name mediamtx-validate \
       -v "$PWD/mediamtx/mediamtx.yml:/mediamtx.yml:ro" \
+      -v "$PWD/mediamtx/certs:/certs:ro" \
       bluenviron/mediamtx:1.6.0 &
     BGPID=$!
     sleep 5

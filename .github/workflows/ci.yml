@@ -33,19 +33,24 @@ jobs:
       - name: mediamtx config validate
         run: |
           set -e
-          # Start mediamtx with our config; give it 5 seconds to parse and bind.
-          # If config is invalid, mediamtx exits non-zero before the timeout and
-          # `docker stop` returns its exit code, failing this step.
+          # Throwaway self-signed cert so mediamtx can open the RTSPS listener.
+          mkdir -p mediamtx/certs
+          docker run --rm -v "$PWD/mediamtx/certs:/certs" alpine/openssl \
+            req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout /certs/server.key -out /certs/server.crt \
+            -subj "/CN=ci-test"
+          # Boot mediamtx with the config; give it 5 seconds to parse and bind.
+          # If config or listener-open fails, mediamtx exits non-zero before the
+          # timeout and we propagate that exit code below.
           docker run --rm --name mediamtx-validate \
             -v "$PWD/mediamtx/mediamtx.yml:/mediamtx.yml:ro" \
+            -v "$PWD/mediamtx/certs:/certs:ro" \
             bluenviron/mediamtx:1.6.0 &
           BGPID=$!
           sleep 5
-          # If the container already exited (parse error), propagate its exit code.
           if ! kill -0 $BGPID 2>/dev/null; then
             wait $BGPID
           fi
-          # Container is still running — config parsed OK. Stop it cleanly.
           docker stop mediamtx-validate || true
           wait $BGPID 2>/dev/null || true
       - name: shellcheck
