@@ -36,5 +36,14 @@ See `docs/local-dev.md` (created in Phase 4).
 ## Production deployment
 See `docs/production-deployment.md` (created in Phase 7).
 
+## CI
+
+This repo runs CI on **two** providers in parallel:
+
+- **GitHub Actions** — `.github/workflows/ci.yml` (push to main, pull requests)
+- **Cirrus CI** — `.cirrus.yml` (same checks, no GitHub-billing dependency)
+
+Either gate suffices. Cirrus CI is set up via the [Cirrus CI GitHub app](https://github.com/marketplace/cirrus-ci) — install once, results post back as PR checks.
+
 ## Source spec
 [mdrrmo_app/docs/superpowers/specs/2026-04-29-cctv-hub-deployment-design.md](../mdrrmo_app/docs/superpowers/specs/2026-04-29-cctv-hub-deployment-design.md)

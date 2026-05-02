@@ -1,0 +1,65 @@
+# .cirrus.yml -- mirror of .github/workflows/ci.yml for Cirrus CI.
+# Runs alongside GitHub Actions; either gate suffices.
+# Setup: install https://github.com/marketplace/cirrus-ci on this repo and push.
+
+validate_task:
+  name: validate
+  only_if: $CIRRUS_BRANCH == 'main' || $CIRRUS_PR != ''
+
+  docker_builder:
+    cpu: 2
+    memory: 4G
+
+  yamllint_script: docker run --rm -v "$PWD:/data" cytopia/yamllint -d relaxed /data
+
+  hadolint_auth_shim_script: docker run --rm -i hadolint/hadolint < auth-shim/Dockerfile
+  hadolint_caddy_path_a_script: docker run --rm -i hadolint/hadolint < caddy/Dockerfile.path-a
+  hadolint_caddy_path_b_script: docker run --rm -i hadolint/hadolint < caddy/Dockerfile.path-b
+
+  compose_config_script: |
+    set -e
+    cp .env.example .env
+    # Both profiles must validate -- stops drift when only one is exercised manually.
+    CADDY_PROFILE=path-a docker compose config --quiet
+    CADDY_PROFILE=path-b docker compose config --quiet
+
+  caddy_validate_script: |
+    docker run --rm -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" \
+      caddy:2.8.4-alpine caddy validate --config /etc/caddy/Caddyfile
+
+  mediamtx_config_validate_script: |
+    set -e
+    # Boot mediamtx with the config; if parse fails the container exits non-zero.
+    docker run --rm --name mediamtx-validate \
+      -v "$PWD/mediamtx/mediamtx.yml:/mediamtx.yml:ro" \
+      bluenviron/mediamtx:v1.6.0 &
+    BGPID=$!
+    sleep 5
+    if ! kill -0 $BGPID 2>/dev/null; then
+      wait $BGPID
+    fi
+    docker stop mediamtx-validate || true
+    wait $BGPID 2>/dev/null || true
+
+  shellcheck_script: docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:stable /mnt/scripts/setup.sh
+
+test_shim_task:
+  name: test-shim
+  only_if: $CIRRUS_BRANCH == 'main' || $CIRRUS_PR != ''
+
+  container:
+    image: golang:1.22
+    cpu: 2
+    memory: 4G
+
+  go_mod_cache:
+    folder: /go/pkg/mod
+    fingerprint_script: cat auth-shim/go.mod
+
+  go_mod_download_script: |
+    cd auth-shim
+    go mod download
+
+  go_test_script: |
+    cd auth-shim
+    go test ./... -race -count=1
