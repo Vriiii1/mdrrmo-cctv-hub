@@ -100,5 +100,6 @@ test-shim:
       - .go/pkg/mod
   script:
     - cd auth-shim
-    - go mod download
+    # go.sum is intentionally empty in the repo; populate transitive deps before test.
+    - go mod tidy
     - go test ./... -race -count=1

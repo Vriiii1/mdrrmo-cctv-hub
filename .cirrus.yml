@@ -63,9 +63,10 @@ test_shim_task:
     folder: /go/pkg/mod
     fingerprint_script: cat auth-shim/go.mod
 
-  go_mod_download_script: |
+  go_mod_tidy_script: |
     cd auth-shim
-    go mod download
+    # go.sum is intentionally empty in the repo; tidy resolves and writes hashes.
+    go mod tidy
 
   go_test_script: |
     cd auth-shim
