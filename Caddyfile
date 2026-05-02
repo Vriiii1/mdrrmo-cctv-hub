@@ -1,9 +1,9 @@
 # mdrrmo-cctv-hub/Caddyfile (Path B — auth-shim sidecar)
 {
-    email {$ACME_EMAIL}
+    email {$ACME_EMAIL:ops@example.invalid}
 }
 
-{$HUB_DOMAIN} {
+{$HUB_DOMAIN:hub.localhost} {
     encode zstd gzip
 
     handle /healthz {

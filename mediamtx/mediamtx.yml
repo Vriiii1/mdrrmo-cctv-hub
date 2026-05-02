@@ -11,9 +11,10 @@ logDestinations: [stdout]
 # RTSPS publish auth is enforced via externalAuthenticationURL → auth-shim.
 
 # RTSPS publish (TLS-wrapped RTSP) — agents publish to <HUB_DOMAIN>:8443
+# In mediamtx 1.6.0 RTSPS is enabled by setting rtspsAddress + serverCert/Key;
+# `encryption: optional` keeps the plain RTSP listener (8554) for internal use.
 rtsp: yes
 rtspAddress: 0.0.0.0:8554
-rtsps: yes
 rtspsAddress: 0.0.0.0:8322
 encryption: optional
 serverCert: /certs/server.crt
