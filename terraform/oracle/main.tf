@@ -147,3 +147,7 @@ module "dns" {
 output "hub_ipv4" { value = oci_core_instance.hub.public_ip }
 output "hub_ipv6" { value = "" }
 output "active_provider" { value = "oracle" }
+output "rtsps_fqdn" {
+  description = "DNS-only subdomain for RTSPS publish (camera agents use this, not hub.<zone>)."
+  value       = module.dns.rtsps_fqdn
+}

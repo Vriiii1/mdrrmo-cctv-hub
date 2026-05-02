@@ -6,3 +6,8 @@ variable "hub_ipv6" {
   type    = string
   default = ""
 }
+variable "rtsps_subdomain" {
+  type    = string
+  default = "rtsps"
+  description = "Subdomain for the DNS-only (proxied=false) RTSPS record. Cloudflare orange-cloud cannot proxy raw TLS on :8443."
+}

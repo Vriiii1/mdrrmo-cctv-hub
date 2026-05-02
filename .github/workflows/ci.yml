@@ -17,17 +17,37 @@ jobs:
         run: docker run --rm -v "$PWD:/data" cytopia/yamllint -d relaxed /data
       - name: hadolint auth-shim
         run: docker run --rm -i hadolint/hadolint < auth-shim/Dockerfile
+      - name: hadolint caddy path-a
+        run: docker run --rm -i hadolint/hadolint < caddy/Dockerfile.path-a
+      - name: hadolint caddy path-b
+        run: docker run --rm -i hadolint/hadolint < caddy/Dockerfile.path-b
       - name: compose-config (both profiles)
         run: |
           set -e
           cp .env.example .env
           # Both profiles must validate -- stops drift when only one is exercised manually.
-          COMPOSE_PROFILES=path-a docker compose config --quiet
-          COMPOSE_PROFILES=path-b docker compose config --quiet
+          CADDY_PROFILE=path-a docker compose config --quiet
+          CADDY_PROFILE=path-b docker compose config --quiet
       - name: caddy validate
         run: docker run --rm -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.8.4-alpine caddy validate --config /etc/caddy/Caddyfile
-      - name: mediamtx config (smoke)
-        run: docker run --rm -v "$PWD/mediamtx/mediamtx.yml:/mediamtx.yml:ro" bluenviron/mediamtx:v1.6.0 sh -c "true"
+      - name: mediamtx config validate
+        run: |
+          set -e
+          # Start mediamtx with our config; give it 5 seconds to parse and bind.
+          # If config is invalid, mediamtx exits non-zero before the timeout and
+          # `docker stop` returns its exit code, failing this step.
+          docker run --rm --name mediamtx-validate \
+            -v "$PWD/mediamtx/mediamtx.yml:/mediamtx.yml:ro" \
+            bluenviron/mediamtx:v1.6.0 &
+          BGPID=$!
+          sleep 5
+          # If the container already exited (parse error), propagate its exit code.
+          if ! kill -0 $BGPID 2>/dev/null; then
+            wait $BGPID
+          fi
+          # Container is still running — config parsed OK. Stop it cleanly.
+          docker stop mediamtx-validate || true
+          wait $BGPID 2>/dev/null || true
       - name: shellcheck
         run: docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:stable /mnt/scripts/setup.sh
 

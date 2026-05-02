@@ -1,7 +1,16 @@
 # terraform/oracle/variables.tf
-variable "tenancy_ocid"        { type = string }
-variable "user_ocid"           { type = string }
-variable "api_key_fingerprint" { type = string }
+variable "tenancy_ocid" {
+  type      = string
+  sensitive = true
+}
+variable "user_ocid" {
+  type      = string
+  sensitive = true
+}
+variable "api_key_fingerprint" {
+  type      = string
+  sensitive = true
+}
 variable "api_key_path" {
   type    = string
   default = "~/.oci/oci_api_key.pem"

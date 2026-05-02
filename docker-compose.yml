@@ -1,9 +1,11 @@
 # mdrrmo-cctv-hub/docker-compose.yml
 #
-# Path A vs Path B is selected at deploy time via COMPOSE_PROFILES (set in .env):
-#   COMPOSE_PROFILES=path-a  → Caddy with caddy-jwt plugin (built via xcaddy, see caddy/Dockerfile)
-#   COMPOSE_PROFILES=path-b  → Caddy stock + auth-shim sidecar (validates JWT in Go)
+# Path A vs Path B is selected at deploy time via CADDY_PROFILE (set in .env):
+#   CADDY_PROFILE=path-a  → Caddy with caddy-jwt plugin (built via xcaddy, see caddy/Dockerfile)
+#   CADDY_PROFILE=path-b  → Caddy stock + auth-shim sidecar (validates JWT in Go)
 # (Phase 0 spike picked path-b — see docs/decisions/0001-jwt-validation-layer.md)
+# NOTE: CADDY_PROFILE is intentionally NOT named COMPOSE_PROFILES — that name is
+# reserved by Docker Compose for `profiles:` service activation and must not be reused.
 #
 # Both paths share the `hub` bridge network and the same MediaMTX service.
 # RTSPS publish on 8443 is mapped directly to MediaMTX (NOT proxied through Caddy)
@@ -23,8 +25,10 @@ services:
     # Path B uses the stock Alpine image because all auth lives in auth-shim.
     build:
       context: ./caddy
-      dockerfile: Dockerfile.${COMPOSE_PROFILES:-path-b}
-    image: mdrrmo/cctv-caddy-${COMPOSE_PROFILES:-path-b}:latest
+      dockerfile: Dockerfile.${CADDY_PROFILE:-path-b}
+      args:
+        CADDY_VERSION: ${CADDY_VERSION:-2.8.4}
+    image: mdrrmo/cctv-caddy-${CADDY_PROFILE:-path-b}:latest
     restart: unless-stopped
     ports:
       - "80:80"
@@ -49,6 +53,7 @@ services:
       - "8443:8322"   # RTSPS publish — host:8443 → mediamtx:8322 (auth via externalAuthenticationURL)
     volumes:
       - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
+      - ./mediamtx/certs:/certs:ro   # TLS cert+key for RTSPS (place server.crt + server.key here before up)
       - mediamtx_data:/var/lib/mediamtx
     depends_on:
       auth-shim:

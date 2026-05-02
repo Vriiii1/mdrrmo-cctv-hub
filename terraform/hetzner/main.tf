@@ -68,3 +68,7 @@ module "dns" {
 output "hub_ipv4" { value = hcloud_server.hub.ipv4_address }
 output "hub_ipv6" { value = hcloud_server.hub.ipv6_address }
 output "active_provider" { value = "hetzner" }
+output "rtsps_fqdn" {
+  description = "DNS-only subdomain for RTSPS publish (camera agents use this, not hub.<zone>)."
+  value       = module.dns.rtsps_fqdn
+}

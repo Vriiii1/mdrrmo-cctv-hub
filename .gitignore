@@ -18,11 +18,16 @@ terraform/terraform.tfvars
 caddy_data/
 caddy_config/
 mediamtx_data/
-audit-shim-logs/
+auth-shim-logs/
 
 # go
-audit-shim/audit-shim
-audit-shim/*.exe
+auth-shim/auth-shim
+auth-shim/*.exe
+
+# MediaMTX TLS material (operator-placed; never commit private keys or certs)
+mediamtx/certs/*.crt
+mediamtx/certs/*.key
+mediamtx/certs/*.pem
 
 # IDE
 .vscode/
