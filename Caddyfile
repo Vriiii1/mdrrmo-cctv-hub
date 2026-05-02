@@ -43,7 +43,9 @@
         reverse_proxy mediamtx:8889
     }
 
-    handle { respond 404 }
+    handle {
+        respond 404
+    }
 
     log {
         output file /var/log/caddy/access.log {

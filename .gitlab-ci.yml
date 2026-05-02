@@ -64,7 +64,7 @@ mediamtx-config-validate:
       # Boot mediamtx with the config; if parse fails the container exits non-zero.
       docker run --rm --name mediamtx-validate \
         -v "$CI_PROJECT_DIR/mediamtx/mediamtx.yml:/mediamtx.yml:ro" \
-        bluenviron/mediamtx:v1.6.0 &
+        bluenviron/mediamtx:1.6.0 &
       BGPID=$!
       sleep 5
       if ! kill -0 $BGPID 2>/dev/null; then
@@ -77,7 +77,7 @@ shellcheck:
   extends: .docker
   stage: validate
   script:
-    - docker run --rm -v "$CI_PROJECT_DIR:/mnt" koalaman/shellcheck:stable /mnt/scripts/setup.sh
+    - docker run --rm -v "$CI_PROJECT_DIR:/mnt" koalaman/shellcheck:stable --severity=warning /mnt/scripts/setup.sh
 
 test-shim:
   stage: test

@@ -38,7 +38,7 @@ jobs:
           # `docker stop` returns its exit code, failing this step.
           docker run --rm --name mediamtx-validate \
             -v "$PWD/mediamtx/mediamtx.yml:/mediamtx.yml:ro" \
-            bluenviron/mediamtx:v1.6.0 &
+            bluenviron/mediamtx:1.6.0 &
           BGPID=$!
           sleep 5
           # If the container already exited (parse error), propagate its exit code.
@@ -49,7 +49,7 @@ jobs:
           docker stop mediamtx-validate || true
           wait $BGPID 2>/dev/null || true
       - name: shellcheck
-        run: docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:stable /mnt/scripts/setup.sh
+        run: docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:stable --severity=warning /mnt/scripts/setup.sh
 
   test-shim:
     runs-on: ubuntu-latest

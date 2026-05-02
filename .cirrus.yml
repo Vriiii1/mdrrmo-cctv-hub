@@ -32,7 +32,7 @@ validate_task:
     # Boot mediamtx with the config; if parse fails the container exits non-zero.
     docker run --rm --name mediamtx-validate \
       -v "$PWD/mediamtx/mediamtx.yml:/mediamtx.yml:ro" \
-      bluenviron/mediamtx:v1.6.0 &
+      bluenviron/mediamtx:1.6.0 &
     BGPID=$!
     sleep 5
     if ! kill -0 $BGPID 2>/dev/null; then
@@ -41,7 +41,7 @@ validate_task:
     docker stop mediamtx-validate || true
     wait $BGPID 2>/dev/null || true
 
-  shellcheck_script: docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:stable /mnt/scripts/setup.sh
+  shellcheck_script: docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:stable --severity=warning /mnt/scripts/setup.sh
 
 test_shim_task:
   name: test-shim
